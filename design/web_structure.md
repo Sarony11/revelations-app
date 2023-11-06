@@ -1,0 +1,9 @@
+- Homepage:
+ - Logo
+ - Login
+- Question pack
+ - Question pack list selection
+- Game game:
+ - Question text
+ - Verify answer
+ - Choose new question from a category or random
