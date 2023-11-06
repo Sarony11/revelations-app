@@ -1,0 +1,33 @@
+# .gitignore
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+*.venv
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# GCP
+*.json
+
+# Misc
+.DS_Store
+*.log
+*.swp
+*.bak
+*.tmp
+*~
