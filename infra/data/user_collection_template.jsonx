@@ -1,0 +1,18 @@
+[
+    {
+        "id": "user1",
+        "data": {
+            "name": "Ada Lovelace",
+            "email": "ada.lovelace@example.com",
+            "profile_picture": "https://example.com/images/ada_lovelace.jpg"
+        }
+    },
+    {
+        "id": "user2",
+        "data": {
+            "name": "Alan Turing",
+            "email": "alan.turing@example.com",
+            "profile_picture": "https://example.com/images/alan_turing.jpg"
+        }
+    }
+]
