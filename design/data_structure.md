@@ -1,18 +1,20 @@
 User
-- ID_user
-- User Name
+- 'ID'
+- 'name'
+- 'email'
+- 'profile_picture'
 
 Question Pack
-- ID_question_pack
-- Pack Name
-- Pack Description
+- 'ID'
+- 'name'
+- 'description'
 
 Question Categories
-- ID_question_category
-- Category Name
+- 'ID'
+- 'name'
 
 Questions
-- ID_question
-- Question Text
-- ID_question_category
-- ID_question_pack
+- 'ID'
+- 'text'
+- 'ID_question_category'
+- 'ID_question_pack'
