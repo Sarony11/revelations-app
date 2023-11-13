@@ -1,20 +1,13 @@
 User
-- 'ID'
+- 'UserID'
 - 'name'
 - 'email'
-- 'profile_picture'
 
-Question Pack
-- 'ID'
+Question Packs
+- 'PackID'
 - 'name'
 - 'description'
-
-Question Categories
-- 'ID'
-- 'name'
-
-Questions
-- 'ID'
-- 'text'
-- 'ID_question_category'
-- 'ID_question_pack'
+- 'question' = {
+    - 'text'
+    - 'category'
+}
