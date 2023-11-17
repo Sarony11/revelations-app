@@ -1,11 +1,12 @@
-POST /users: Crea un nuevo usuario.
-GET /users/{id}: Obtiene la información de un usuario.
-POST /question-packs: Crea un nuevo pack de preguntas.
-GET /question-packs: Obtiene una lista de todos los packs de preguntas.
-GET /question-packs/{id}: Obtiene la información de un pack de preguntas.
-POST /question-categories: Crea una nueva categoría de preguntas.
-GET /question-categories: Obtiene una lista de todas las categorías de preguntas.
-GET /question-categories/{id}: Obtiene la información de una categoría de preguntas.
-POST /questions: Crea una nueva pregunta.
-GET /questions: Obtiene una lista de todas las preguntas.
-GET /questions/{id}: Obtiene la información de una pregunta.
+GET /users: Returns users DynamoDB table structure.
+POST /users: Create a new user.
+GET /users/{UserID}: Get information about the specific users from table users.
+
+GET /question_pack: Returns users DynamoDB question_pack structure.
+POST /question_pack: Create a question_pack.
+GET /question_pack/{PackID}: Get information about the specific pack from table question_packs.
+
+GET /question/{PackID}/random_category/{QuestionNumber}: Get the numbered question from question_pack.
+GET /question/{PackID}/random_category/random_question: Get a random question from the question_pack.
+GET /question/{PackID}/{CategoryName}/{QuestionNumber}: Get the numbered question from the specific CategoryName from the question_pack.
+GET /question/{PackID}/{CategoryName}/random_question: Get a random question from the specific CategoryName from the question_pack.

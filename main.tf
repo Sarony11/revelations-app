@@ -95,52 +95,110 @@ resource "aws_lambda_function" "get_users" {
   source_code_hash = filebase64sha256("${path.module}/lambda/get_users.zip")
 }
 
+resource "aws_lambda_function" "get_user_id" {
+  function_name = "getUserID"
+  handler       = "get_user_id.lambda_handler"
+  runtime       = "python3.8"
+
+  role          = aws_iam_role.lambda_exec_role.arn
+
+  filename         = "${path.module}/lambda/get_user_id.zip"
+  source_code_hash = filebase64sha256("${path.module}/lambda/get_user_id.zip")
+}
+
 ###### API DEFINITION ######
-resource "aws_api_gateway_rest_api" "default_api" {
+resource "aws_api_gateway_rest_api" "default" {
   name        = "ReflexionsAPI"
   description = "API for Reflexions game Operations"
 }
 
+## API RESOURCES
 resource "aws_api_gateway_resource" "get_users" {
-  rest_api_id = aws_api_gateway_rest_api.default_api.id
-  parent_id   = aws_api_gateway_rest_api.default_api.root_resource_id
+  rest_api_id = aws_api_gateway_rest_api.default.id
+  parent_id   = aws_api_gateway_rest_api.default.root_resource_id
   path_part   = "users"  # /users path
 }
 
+resource "aws_api_gateway_resource" "get_user_id" {
+  rest_api_id = aws_api_gateway_rest_api.default.id
+  parent_id   = aws_api_gateway_resource.get_users.id
+  #parent_id   = aws_api_gateway_resource.get_users.id
+  path_part   = "{UserID}"  # /users/{UserID} path
+}
+
+## API METHODS
 resource "aws_api_gateway_method" "get_users" {
-  rest_api_id   = aws_api_gateway_rest_api.default_api.id
+  rest_api_id   = aws_api_gateway_rest_api.default.id
   resource_id   = aws_api_gateway_resource.get_users.id
   http_method   = "GET"
   authorization = "NONE"
 }
 
+resource "aws_api_gateway_method" "get_user_id" {
+  rest_api_id   = aws_api_gateway_rest_api.default.id
+  resource_id   = aws_api_gateway_resource.get_user_id.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+## API INTEGRATIONS
 resource "aws_api_gateway_integration" "get_users_integration" {
-  rest_api_id = aws_api_gateway_rest_api.default_api.id
+  rest_api_id = aws_api_gateway_rest_api.default.id
   resource_id = aws_api_gateway_resource.get_users.id
   http_method = aws_api_gateway_method.get_users.http_method
 
-  integration_http_method = "POST"  # AWS utiliza POST para invocar funciones Lambda
+  integration_http_method = "POST"  # AWS uses POST to invoke Lambda functions
   type                    = "AWS_PROXY"
   uri                     = aws_lambda_function.get_users.invoke_arn
 }
 
-resource "aws_api_gateway_deployment" "default" {
-  depends_on = [
-    aws_api_gateway_integration.get_users_integration
-  ]
+resource "aws_api_gateway_integration" "get_user_id_integration" {
+  rest_api_id = aws_api_gateway_rest_api.default.id
+  resource_id = aws_api_gateway_resource.get_user_id.id
+  http_method = aws_api_gateway_method.get_user_id.http_method
 
-  rest_api_id = aws_api_gateway_rest_api.default_api.id
-  stage_name  = "v1"
+  integration_http_method = "POST"  # AWS uses POST to invoke Lambda functions
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.get_user_id.invoke_arn
 }
 
-resource "aws_lambda_permission" "api_gateway_permission" {
+## API DEPLOYMENT
+resource "aws_api_gateway_deployment" "default" {
+  depends_on = [
+    aws_api_gateway_integration.get_users_integration,
+    aws_api_gateway_integration.get_user_id_integration
+  ]
+
+  rest_api_id = aws_api_gateway_rest_api.default.id
+  stage_name  = "v1"
+
+  # To make changes to be affective, aws_api_gateway_deployment has to be redeploy.
+  # This makes the resource to be redeployed everytime.
+  triggers = {
+    #redeployment = sha256(jsonencode(aws_api_gateway_rest_api.default.body))
+    redeployment = "${timestamp()}"
+  }
+}
+
+## API PERMISSIONS
+resource "aws_lambda_permission" "get_users" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.get_users.function_name
   principal     = "apigateway.amazonaws.com"
 
   # /stage_name/HTTP_method/resource_path
-  source_arn = "${aws_api_gateway_rest_api.default_api.execution_arn}/v1/GET/users"
+  source_arn = "${aws_api_gateway_rest_api.default.execution_arn}/v1/GET/users"
+}
+
+resource "aws_lambda_permission" "get_user_id" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.get_user_id.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  # /stage_name/HTTP_method/resource_path
+  source_arn = "${aws_api_gateway_rest_api.default.execution_arn}/v1/GET/users/{UserID}"
 }
 
 /* ####### ----- TEST API ----- #######
@@ -158,14 +216,14 @@ resource "aws_lambda_function" "hello_world" {
 
 # Create API resource
 resource "aws_api_gateway_resource" "my_resource" {
-  rest_api_id = aws_api_gateway_rest_api.default_api.id
-  parent_id   = aws_api_gateway_rest_api.default_api.root_resource_id
+  rest_api_id = aws_api_gateway_rest_api.default.id
+  parent_id   = aws_api_gateway_rest_api.default.root_resource_id
   path_part   = "helloworld"  # /helloworld path
 }
 
 # Create API method
 resource "aws_api_gateway_method" "my_method" {
-  rest_api_id   = aws_api_gateway_rest_api.default_api.id
+  rest_api_id   = aws_api_gateway_rest_api.default.id
   resource_id   = aws_api_gateway_resource.my_resource.id
   http_method   = "GET"
   authorization = "NONE"
@@ -173,7 +231,7 @@ resource "aws_api_gateway_method" "my_method" {
 
 # Integrate API with Lambda Function
 resource "aws_api_gateway_integration" "lambda_integration" {
-  rest_api_id = aws_api_gateway_rest_api.default_api.id
+  rest_api_id = aws_api_gateway_rest_api.default.id
   resource_id = aws_api_gateway_resource.my_resource.id
   http_method = aws_api_gateway_method.my_method.http_method
   integration_http_method = "POST"
@@ -189,7 +247,7 @@ resource "aws_lambda_permission" "allow_apigateway" {
   principal     = "apigateway.amazonaws.com"
 
   # /stage_name/HTTP_method/resource_path
-  source_arn = "${aws_api_gateway_rest_api.default_api.execution_arn}/*//*"
+  source_arn = "${aws_api_gateway_rest_api.default.execution_arn}/*//*"
 }
 
 # Deploy API
@@ -198,7 +256,7 @@ resource "aws_api_gateway_deployment" "my_deployment" {
     aws_api_gateway_integration.lambda_integration
   ]
 
-  rest_api_id = aws_api_gateway_rest_api.default_api.id
+  rest_api_id = aws_api_gateway_rest_api.default.id
   stage_name  = "test"
 }
 
