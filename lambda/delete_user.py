@@ -14,9 +14,7 @@ def lambda_handler(event, context):
 
     # Intentar borrar el usuario de DynamoDB
     try:
-        response = table.delete_item(
-            Key={'UserID': user_id}
-        )
+        response = table.delete_item(Key={'UserID': user_id})
         return {
             'statusCode': 200,
             'body': json.dumps(f"User {user_id} deleted successfully")

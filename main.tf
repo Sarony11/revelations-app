@@ -74,7 +74,8 @@ resource "aws_iam_role_policy" "lambda_dynamodb_access" {
         Action   = [
           "dynamodb:Scan",
           "dynamodb:GetItem",
-          "dynamodb:PutItem"
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem"
         ],
         Effect   = "Allow",
         Resource = "arn:aws:dynamodb:us-east-1:173776345966:table/users"
@@ -106,45 +107,62 @@ resource "aws_lambda_function" "get_user_id" {
   source_code_hash = filebase64sha256("${path.module}/lambda/get_user_id.zip")
 }
 
+resource "aws_lambda_function" "delete_user" {
+  function_name = "deleteUser"
+  handler       = "delete_user.lambda_handler"
+  runtime       = "python3.8"
+
+  role          = aws_iam_role.lambda_exec_role.arn
+
+  filename         = "${path.module}/lambda/delete_user.zip"
+  source_code_hash = filebase64sha256("${path.module}/lambda/delete_user.zip")
+}
+
 ###### API DEFINITION ######
 resource "aws_api_gateway_rest_api" "default" {
-  name        = "ReflexionsAPI"
-  description = "API for Reflexions game Operations"
+  name        = "ConnectionsAPI"
+  description = "API for Connections game Operations"
 }
 
 ## API RESOURCES
-resource "aws_api_gateway_resource" "get_users" {
+resource "aws_api_gateway_resource" "users" {
   rest_api_id = aws_api_gateway_rest_api.default.id
   parent_id   = aws_api_gateway_rest_api.default.root_resource_id
   path_part   = "users"  # /users path
 }
 
-resource "aws_api_gateway_resource" "get_user_id" {
+resource "aws_api_gateway_resource" "user_id" {
   rest_api_id = aws_api_gateway_rest_api.default.id
-  parent_id   = aws_api_gateway_resource.get_users.id
-  #parent_id   = aws_api_gateway_resource.get_users.id
+  parent_id   = aws_api_gateway_resource.users.id
   path_part   = "{UserID}"  # /users/{UserID} path
 }
 
 ## API METHODS
 resource "aws_api_gateway_method" "get_users" {
   rest_api_id   = aws_api_gateway_rest_api.default.id
-  resource_id   = aws_api_gateway_resource.get_users.id
+  resource_id   = aws_api_gateway_resource.users.id
   http_method   = "GET"
   authorization = "NONE"
 }
 
 resource "aws_api_gateway_method" "get_user_id" {
   rest_api_id   = aws_api_gateway_rest_api.default.id
-  resource_id   = aws_api_gateway_resource.get_user_id.id
+  resource_id   = aws_api_gateway_resource.user_id.id
   http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "delete_user" {
+  rest_api_id   = aws_api_gateway_rest_api.default.id
+  resource_id   = aws_api_gateway_resource.user_id.id
+  http_method   = "DELETE"
   authorization = "NONE"
 }
 
 ## API INTEGRATIONS
 resource "aws_api_gateway_integration" "get_users_integration" {
   rest_api_id = aws_api_gateway_rest_api.default.id
-  resource_id = aws_api_gateway_resource.get_users.id
+  resource_id = aws_api_gateway_resource.users.id
   http_method = aws_api_gateway_method.get_users.http_method
 
   integration_http_method = "POST"  # AWS uses POST to invoke Lambda functions
@@ -154,7 +172,7 @@ resource "aws_api_gateway_integration" "get_users_integration" {
 
 resource "aws_api_gateway_integration" "get_user_id_integration" {
   rest_api_id = aws_api_gateway_rest_api.default.id
-  resource_id = aws_api_gateway_resource.get_user_id.id
+  resource_id = aws_api_gateway_resource.user_id.id
   http_method = aws_api_gateway_method.get_user_id.http_method
 
   integration_http_method = "POST"  # AWS uses POST to invoke Lambda functions
@@ -162,11 +180,22 @@ resource "aws_api_gateway_integration" "get_user_id_integration" {
   uri                     = aws_lambda_function.get_user_id.invoke_arn
 }
 
+resource "aws_api_gateway_integration" "delete_user_integration" {
+  rest_api_id = aws_api_gateway_rest_api.default.id
+  resource_id = aws_api_gateway_resource.user_id.id
+  http_method = aws_api_gateway_method.delete_user.http_method
+
+  integration_http_method = "POST"  # AWS uses POST to invoke Lambda functions
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.delete_user.invoke_arn
+}
+
 ## API DEPLOYMENT
 resource "aws_api_gateway_deployment" "default" {
   depends_on = [
     aws_api_gateway_integration.get_users_integration,
-    aws_api_gateway_integration.get_user_id_integration
+    aws_api_gateway_integration.get_user_id_integration,
+    aws_api_gateway_integration.delete_user_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.default.id
@@ -199,6 +228,16 @@ resource "aws_lambda_permission" "get_user_id" {
 
   # /stage_name/HTTP_method/resource_path
   source_arn = "${aws_api_gateway_rest_api.default.execution_arn}/v1/GET/users/{UserID}"
+}
+
+resource "aws_lambda_permission" "delete_user" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.delete_user.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  # /stage_name/HTTP_method/resource_path
+  source_arn = "${aws_api_gateway_rest_api.default.execution_arn}/v1/DELETE/users/{UserID}"
 }
 
 /* ####### ----- TEST API ----- #######
