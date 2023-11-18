@@ -5,6 +5,7 @@
 *.tfstate
 *.tfstate.backup
 *.tfvars
+*.lock.hcl
 
 # Python
 __pycache__/
@@ -31,6 +32,3 @@ build/
 *.bak
 *.tmp
 *~
-
-# Sensitive
-infra/locals.tf
