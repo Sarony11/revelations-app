@@ -63,8 +63,8 @@ resource "aws_iam_role" "lambda_exec_role" {
   })
 }
 
-resource "aws_iam_role_policy" "lambda_dynamodb_access" {
-  name = "lambda_dynamodb_access"
+resource "aws_iam_role_policy" "connections_users_table_access" {
+  name = "connections_users_table_access"
   role = aws_iam_role.lambda_exec_role.id
 
   policy = jsonencode({
@@ -79,6 +79,27 @@ resource "aws_iam_role_policy" "lambda_dynamodb_access" {
         ],
         Effect   = "Allow",
         Resource = "arn:aws:dynamodb:us-east-1:173776345966:table/users"
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "connections_question_packs_table_access" {
+  name = "connections_question_packs_table_access"
+  role = aws_iam_role.lambda_exec_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action   = [
+          "dynamodb:Scan",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem"
+        ],
+        Effect   = "Allow",
+        Resource = "arn:aws:dynamodb:us-east-1:173776345966:table/question_packs"
       },
     ]
   })
@@ -118,6 +139,28 @@ resource "aws_lambda_function" "delete_user" {
   source_code_hash = filebase64sha256("${path.module}/lambda/delete_user.zip")
 }
 
+resource "aws_lambda_function" "get_packs" {
+  function_name = "getPacks"
+  handler       = "get_packs.lambda_handler"
+  runtime       = "python3.8"
+
+  role          = aws_iam_role.lambda_exec_role.arn
+
+  filename         = "${path.module}/lambda/get_packs.zip"
+  source_code_hash = filebase64sha256("${path.module}/lambda/get_packs.zip")
+}
+
+resource "aws_lambda_function" "get_pack_id" {
+  function_name = "getPackID"
+  handler       = "get_pack_id.lambda_handler"
+  runtime       = "python3.8"
+
+  role          = aws_iam_role.lambda_exec_role.arn
+
+  filename         = "${path.module}/lambda/get_pack_id.zip"
+  source_code_hash = filebase64sha256("${path.module}/lambda/get_pack_id.zip")
+}
+
 ###### API DEFINITION ######
 resource "aws_api_gateway_rest_api" "default" {
   name        = "ConnectionsAPI"
@@ -135,6 +178,18 @@ resource "aws_api_gateway_resource" "user_id" {
   rest_api_id = aws_api_gateway_rest_api.default.id
   parent_id   = aws_api_gateway_resource.users.id
   path_part   = "{UserID}"  # /users/{UserID} path
+}
+
+resource "aws_api_gateway_resource" "packs" {
+  rest_api_id = aws_api_gateway_rest_api.default.id
+  parent_id   = aws_api_gateway_rest_api.default.root_resource_id
+  path_part   = "packs"  # /pack path
+}
+
+resource "aws_api_gateway_resource" "pack_id" {
+  rest_api_id = aws_api_gateway_rest_api.default.id
+  parent_id   = aws_api_gateway_resource.packs.id
+  path_part   = "{PackID}"  # /pack/{PackID} path
 }
 
 ## API METHODS
@@ -156,6 +211,20 @@ resource "aws_api_gateway_method" "delete_user" {
   rest_api_id   = aws_api_gateway_rest_api.default.id
   resource_id   = aws_api_gateway_resource.user_id.id
   http_method   = "DELETE"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_packs" {
+  rest_api_id   = aws_api_gateway_rest_api.default.id
+  resource_id   = aws_api_gateway_resource.packs.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "get_pack_id" {
+  rest_api_id   = aws_api_gateway_rest_api.default.id
+  resource_id   = aws_api_gateway_resource.pack_id.id
+  http_method   = "GET"
   authorization = "NONE"
 }
 
@@ -190,12 +259,34 @@ resource "aws_api_gateway_integration" "delete_user_integration" {
   uri                     = aws_lambda_function.delete_user.invoke_arn
 }
 
+resource "aws_api_gateway_integration" "get_packs_integration" {
+  rest_api_id = aws_api_gateway_rest_api.default.id
+  resource_id = aws_api_gateway_resource.packs.id
+  http_method = aws_api_gateway_method.get_packs.http_method
+
+  integration_http_method = "POST"  # AWS uses POST to invoke Lambda functions
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.get_packs.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "get_pack_id_integration" {
+  rest_api_id = aws_api_gateway_rest_api.default.id
+  resource_id = aws_api_gateway_resource.pack_id.id
+  http_method = aws_api_gateway_method.get_pack_id.http_method
+
+  integration_http_method = "POST"  # AWS uses POST to invoke Lambda functions
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.get_pack_id.invoke_arn
+}
+
 ## API DEPLOYMENT
 resource "aws_api_gateway_deployment" "default" {
   depends_on = [
     aws_api_gateway_integration.get_users_integration,
     aws_api_gateway_integration.get_user_id_integration,
-    aws_api_gateway_integration.delete_user_integration
+    aws_api_gateway_integration.delete_user_integration,
+    aws_api_gateway_integration.get_packs_integration,
+    aws_api_gateway_integration.get_pack_id_integration
   ]
 
   rest_api_id = aws_api_gateway_rest_api.default.id
@@ -238,6 +329,26 @@ resource "aws_lambda_permission" "delete_user" {
 
   # /stage_name/HTTP_method/resource_path
   source_arn = "${aws_api_gateway_rest_api.default.execution_arn}/v1/DELETE/users/{UserID}"
+}
+
+resource "aws_lambda_permission" "get_packs" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.get_packs.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  # /stage_name/HTTP_method/resource_path
+  source_arn = "${aws_api_gateway_rest_api.default.execution_arn}/v1/GET/packs"
+}
+
+resource "aws_lambda_permission" "get_pack_id" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.get_pack_id.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  # /stage_name/HTTP_method/resource_path
+  source_arn = "${aws_api_gateway_rest_api.default.execution_arn}/v1/GET/packs/{PackID}"
 }
 
 /* ####### ----- TEST API ----- #######
