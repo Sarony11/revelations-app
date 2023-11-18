@@ -9,7 +9,6 @@ def lambda_handler(event, context):
     try:
         response = table.scan()
         items = response['Items']
-        print(items)
         return {
             'statusCode': 200,
             'body': json.dumps(items)

@@ -24,7 +24,6 @@ def lambda_handler(event, context):
             'body': json.dumps("Error getting user")
         }
     else:
-        print(response)
         item = response.get('Item', None)
         if not item:
             # User not found, return 404
@@ -39,4 +38,4 @@ def lambda_handler(event, context):
                 'body': json.dumps(item)
             }
 
-lambda_handler({'pathParameters': {'UserID': 'user1'}}, None)
+#lambda_handler({'pathParameters': {'UserID': 'user1'}}, None)
